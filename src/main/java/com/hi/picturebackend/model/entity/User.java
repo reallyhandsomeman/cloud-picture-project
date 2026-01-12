@@ -2,6 +2,7 @@ package com.hi.picturebackend.model.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.util.Date;
 import lombok.Data;
@@ -14,9 +15,9 @@ import lombok.Data;
 @Data
 public class User {
     /**
-     * id
+     * id（要指定主键策略，采用雪花算法）
      */
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private Long id;
 
     /**
@@ -65,7 +66,8 @@ public class User {
     private Date updateTime;
 
     /**
-     * 是否删除
+     * 是否删除（逻辑删除）
      */
+    @TableLogic // 逻辑删除字段
     private Integer isDelete;
 }
