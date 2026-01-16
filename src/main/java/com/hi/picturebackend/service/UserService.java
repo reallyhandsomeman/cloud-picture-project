@@ -79,12 +79,4 @@ public interface UserService extends IService<User> {
      * @return
      */
     boolean isAdmin(User user);
-
-    QueryWrapper<Picture> getQueryWrapper(PictureQueryRequest pictureQueryRequest);
-
-    PictureVO getPictureVO(Picture picture, HttpServletRequest request);
-
-    Page<PictureVO> getPictureVOPage(Page<Picture> picturePage, HttpServletRequest request);
-
-    void validPicture(Picture picture);
 }
