@@ -1,10 +1,14 @@
 package com.hi.picturebackend.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.hi.picturebackend.model.dto.picture.PictureQueryRequest;
 import com.hi.picturebackend.model.dto.user.UserQueryRequest;
+import com.hi.picturebackend.model.entity.Picture;
 import com.hi.picturebackend.model.entity.User;
 import com.hi.picturebackend.model.vo.LoginUserVO;
+import com.hi.picturebackend.model.vo.PictureVO;
 import com.hi.picturebackend.model.vo.UserVO;
 
 import javax.servlet.http.HttpServletRequest;
@@ -63,7 +67,24 @@ public interface UserService extends IService<User> {
     boolean userLogout(HttpServletRequest request);
 
     UserVO getUserVO(User user);
+
     List<UserVO> getUserVOList(List<User> userList);
 
     QueryWrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest);
+
+    /**
+     * 是否为管理员
+     *
+     * @param user
+     * @return
+     */
+    boolean isAdmin(User user);
+
+    QueryWrapper<Picture> getQueryWrapper(PictureQueryRequest pictureQueryRequest);
+
+    PictureVO getPictureVO(Picture picture, HttpServletRequest request);
+
+    Page<PictureVO> getPictureVOPage(Page<Picture> picturePage, HttpServletRequest request);
+
+    void validPicture(Picture picture);
 }
