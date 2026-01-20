@@ -10,11 +10,8 @@ import com.hi.picturebackend.constant.UserConstant;
 import com.hi.picturebackend.exception.BusinessException;
 import com.hi.picturebackend.exception.ErrorCode;
 import com.hi.picturebackend.exception.ThrowUtils;
-import com.hi.picturebackend.model.dto.picture.PictureEditRequest;
-import com.hi.picturebackend.model.dto.picture.PictureQueryRequest;
-import com.hi.picturebackend.model.dto.picture.PictureUpdateRequest;
+import com.hi.picturebackend.model.dto.picture.*;
 import com.hi.picturebackend.model.entity.Picture;
-import com.hi.picturebackend.model.dto.picture.PictureTagCategory;
 import com.hi.picturebackend.model.entity.User;
 import com.hi.picturebackend.model.vo.PictureVO;
 import com.hi.picturebackend.service.PictureService;
@@ -23,6 +20,8 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -187,5 +186,31 @@ public class PictureController {
         pictureTagCategory.setCategoryList(categoryList);
         return ResultUtils.success(pictureTagCategory);
     }
+
+    /**
+     * 上传图片（可重新上传）
+     */
+    @PostMapping("/upload")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<PictureVO> uploadPicture(
+            @RequestPart("file") MultipartFile multipartFile,
+            PictureUploadRequest pictureUploadRequest,
+            HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        PictureVO pictureVO = pictureService.uploadPicture(multipartFile, pictureUploadRequest, loginUser);
+        return ResultUtils.success(pictureVO);
+    }
+
+
+    @PostMapping("/review")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> doPictureReview(@RequestBody PictureReviewRequest pictureReviewRequest,
+                                                 HttpServletRequest request) {
+        ThrowUtils.throwIf(pictureReviewRequest == null, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(request);
+        pictureService.doPictureReview(pictureReviewRequest, loginUser);
+        return ResultUtils.success(true);
+    }
+
 }
 
