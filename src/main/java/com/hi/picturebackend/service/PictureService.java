@@ -9,7 +9,6 @@ import com.hi.picturebackend.model.dto.picture.PictureUploadRequest;
 import com.hi.picturebackend.model.entity.Picture;
 import com.hi.picturebackend.model.entity.User;
 import com.hi.picturebackend.model.vo.PictureVO;
-import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 
@@ -36,18 +35,15 @@ public interface PictureService extends IService<Picture> {
     void doPictureReview(PictureReviewRequest pictureReviewRequest, User loginUser);
 
 
+    void fillReviewParams(Picture picture, User loginUser);
+
     /**
      * 上传图片
      *
-     * @param multipartFile
+     * @param inputSource
      * @param pictureUploadRequest
      * @param loginUser
      * @return
      */
-    PictureVO uploadPicture(MultipartFile multipartFile,
-                            PictureUploadRequest pictureUploadRequest,
-                            User loginUser);
-
-
-    void fillReviewParams(Picture picture, User loginUser);
+    PictureVO uploadPicture(Object inputSource, PictureUploadRequest pictureUploadRequest, User loginUser);
 }
