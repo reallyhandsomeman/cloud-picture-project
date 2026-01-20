@@ -9,7 +9,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hi.picturebackend.exception.BusinessException;
 import com.hi.picturebackend.exception.ErrorCode;
 import com.hi.picturebackend.exception.ThrowUtils;
-import com.hi.picturebackend.manager.FileManager;
+import com.hi.picturebackend.manager.upload.FilePictureUpload;
+import com.hi.picturebackend.manager.upload.PictureUploadTemplate;
+import com.hi.picturebackend.manager.upload.UrlPictureUpload;
 import com.hi.picturebackend.mapper.PictureMapper;
 import com.hi.picturebackend.model.dto.file.UploadPictureResult;
 import com.hi.picturebackend.model.dto.picture.PictureQueryRequest;
@@ -24,7 +26,6 @@ import com.hi.picturebackend.service.PictureService;
 import com.hi.picturebackend.service.UserService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -186,11 +187,32 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
     }
 
-    @Resource
-    private FileManager fileManager;
 
     @Override
-    public PictureVO uploadPicture(MultipartFile multipartFile, PictureUploadRequest pictureUploadRequest, User loginUser) {
+    public void fillReviewParams(Picture picture, User loginUser) {
+        if (userService.isAdmin(loginUser)) {
+            // 管理员自动过审
+            picture.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
+            picture.setReviewerId(loginUser.getId());
+            picture.setReviewMessage("管理员自动过审");
+            picture.setReviewTime(new Date());
+        } else {
+            // 非管理员，创建或编辑都要改为待审核
+            picture.setReviewStatus(PictureReviewStatusEnum.REVIEWING.getValue());
+        }
+    }
+
+    @Resource
+    private FilePictureUpload filePictureUpload;
+
+    @Resource
+    private UrlPictureUpload urlPictureUpload;
+
+    @Override
+    public PictureVO uploadPicture(Object inputSource, PictureUploadRequest pictureUploadRequest, User loginUser) {
+        if (inputSource == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "图片为空");
+        }
         ThrowUtils.throwIf(loginUser == null, ErrorCode.NO_AUTH_ERROR);
         // 用于判断是新增还是更新图片
         Long pictureId = null;
@@ -206,11 +228,14 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
                 throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
             }
         }
-
-        // 上传图片，得到信息
         // 按照用户 id 划分目录
         String uploadPathPrefix = String.format("public/%s", loginUser.getId());
-        UploadPictureResult uploadPictureResult = fileManager.uploadPicture(multipartFile, uploadPathPrefix);
+        // 根据 inputSource 类型区分上传方式
+        PictureUploadTemplate pictureUploadTemplate = filePictureUpload;
+        if (inputSource instanceof String) {
+            pictureUploadTemplate = urlPictureUpload;
+        }
+        UploadPictureResult uploadPictureResult = pictureUploadTemplate.uploadPicture(inputSource, uploadPathPrefix);
         // 构造要入库的图片信息
         Picture picture = new Picture();
         picture.setUrl(uploadPictureResult.getUrl());
@@ -233,22 +258,6 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "图片上传失败");
         return PictureVO.objToVo(picture);
     }
-
-    @Override
-    public void fillReviewParams(Picture picture, User loginUser) {
-        if (userService.isAdmin(loginUser)) {
-            // 管理员自动过审
-            picture.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
-            picture.setReviewerId(loginUser.getId());
-            picture.setReviewMessage("管理员自动过审");
-            picture.setReviewTime(new Date());
-        } else {
-            // 非管理员，创建或编辑都要改为待审核
-            picture.setReviewStatus(PictureReviewStatusEnum.REVIEWING.getValue());
-        }
-    }
-
-
 }
 
 
