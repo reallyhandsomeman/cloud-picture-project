@@ -18,10 +18,7 @@ import com.hi.picturebackend.model.vo.PictureVO;
 import com.hi.picturebackend.service.PictureService;
 import com.hi.picturebackend.service.UserService;
 import org.springframework.beans.BeanUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
@@ -30,6 +27,8 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
+@RestController
+@RequestMapping("/picture")
 public class PictureController {
 
 
