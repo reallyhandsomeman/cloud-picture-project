@@ -13,6 +13,7 @@ import com.hi.picturebackend.exception.ThrowUtils;
 import com.hi.picturebackend.model.dto.picture.*;
 import com.hi.picturebackend.model.entity.Picture;
 import com.hi.picturebackend.model.entity.User;
+import com.hi.picturebackend.model.enums.PictureReviewStatusEnum;
 import com.hi.picturebackend.model.vo.PictureVO;
 import com.hi.picturebackend.service.PictureService;
 import com.hi.picturebackend.service.UserService;
@@ -143,6 +144,8 @@ public class PictureController {
         long size = pictureQueryRequest.getPageSize();
         // 限制爬虫，防止一次设置超大size，爬走整个数据库
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        // 普通用户默认只能查看已过审的数据
+        pictureQueryRequest.setReviewStatus(PictureReviewStatusEnum.PASS.getValue());
         // 查询数据库
         Page<Picture> picturePage = pictureService.page(new Page<>(current, size),
                 pictureService.getQueryWrapper(pictureQueryRequest));
