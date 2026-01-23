@@ -62,7 +62,7 @@ public class FileController {
     }
 
     /**
-     * 测试文件下载
+     * 测试文件下载，这就是私有访问
      *
      * @param filepath 文件路径
      * @param response 响应对象
@@ -91,5 +91,4 @@ public class FileController {
             }
         }
     }
-
 }
