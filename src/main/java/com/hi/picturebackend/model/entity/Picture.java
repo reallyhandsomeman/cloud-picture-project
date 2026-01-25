@@ -116,6 +116,11 @@ public class Picture implements Serializable {
      */
     private Date reviewTime;
 
+    /**
+     * 缩略图 url
+     */
+    private String thumbnailUrl;
+
 
     // 这个字段不是数据库表字段，请在 SQL 中忽略它。
     @TableField(exist = false)
