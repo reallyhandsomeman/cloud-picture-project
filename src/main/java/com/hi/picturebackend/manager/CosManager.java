@@ -2,6 +2,8 @@ package com.hi.picturebackend.manager;
 
 import cn.hutool.core.io.FileUtil;
 import com.hi.picturebackend.config.CosClientConfig;
+import com.hi.picturebackend.exception.BusinessException;
+import com.hi.picturebackend.exception.ErrorCode;
 import com.qcloud.cos.COSClient;
 import com.qcloud.cos.model.COSObject;
 import com.qcloud.cos.model.GetObjectRequest;
@@ -73,5 +75,19 @@ public class CosManager {
         picOperations.setRules(rules);
         putObjectRequest.setPicOperations(picOperations);
         return cosClient.putObject(putObjectRequest);
+    }
+
+    /**
+     * 删除未压缩的原始图像
+     *
+     * @param key
+     */
+    public void deleteOriginalImage(String key) {
+        try {
+            // 调用腾讯云 COS 的删除接口
+            cosClient.deleteObject(cosClientConfig.getBucket(), key);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "腾讯云存储删除原图操作失败!");
+        }
     }
 }
