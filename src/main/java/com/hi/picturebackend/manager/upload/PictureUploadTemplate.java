@@ -80,7 +80,7 @@ public abstract class PictureUploadTemplate {
             // 上传图片到对象存储
             PutObjectResult putObjectResult = cosManager.putPictureObject(uploadPath, renamedFile);
             // 删除原始未压缩图像
-            cosManager.deleteOriginalImage(uploadPath);
+            cosManager.deleteObject(uploadPath);
             ImageInfo imageInfo = putObjectResult.getCiUploadResult().getOriginalInfo().getImageInfo();
             ProcessResults processResults = putObjectResult.getCiUploadResult().getProcessResults();
             List<CIObject> objectList = processResults.getObjectList();

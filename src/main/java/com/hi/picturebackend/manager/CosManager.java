@@ -92,7 +92,7 @@ public class CosManager {
      *
      * @param key
      */
-    public void deleteOriginalImage(String key) {
+    public void deleteObject(String key) {
         try {
             // 调用腾讯云 COS 的删除接口
             cosClient.deleteObject(cosClientConfig.getBucket(), key);
