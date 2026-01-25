@@ -5,6 +5,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.NumberUtil;
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
 import com.hi.picturebackend.config.CosClientConfig;
 import com.hi.picturebackend.exception.BusinessException;
 import com.hi.picturebackend.exception.ErrorCode;
@@ -18,6 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Resource;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Date;
 import java.util.List;
 
@@ -41,19 +44,41 @@ public abstract class PictureUploadTemplate {
         String uuid = RandomUtil.randomString(16);
         String originFilename = getOriginFilename(inputSource);
         String suffix = FileUtil.getSuffix(originFilename);
-//        ThrowUtils.throwIf(suffix == null || StringUtil.isBlank(suffix), ErrorCode.PARAMS_ERROR, "上传对象的文件类型为空");
-        String uploadFilename = String.format("%s_%s.%s", DateUtil.formatDate(new Date()), uuid,
-                suffix);
-        String uploadPath = String.format("/%s/%s", uploadPathPrefix, uploadFilename);
 
-        File file = null;
+        String uploadFilename;
+        String uploadPath;
+        File renamedFile = null;
         try {
-            // 创建临时文件
-            file = File.createTempFile(uploadPath, null);
-            // 处理文件来源（本地或 URL）
-            processFile(inputSource, file);
+            // 1. 创建临时文件（只做一次）
+            File tempFile = File.createTempFile("upload_", null);
+            // 2. 写入文件（URL / 本地）
+            processFile(inputSource, tempFile);
+            // 3. 识别图片类型
+            if (StrUtil.isBlank(suffix)) {
+                suffix = UrlPictureUpload.detectImageSuffix(tempFile);
+            }
+
+            // 4. 生成最终文件名 & 路径
+            uploadFilename = String.format(
+                    "%s_%s.%s",
+                    DateUtil.formatDate(new Date()),
+                    uuid,
+                    suffix
+            );
+            uploadPath = String.format("/%s/%s", uploadPathPrefix, uploadFilename);
+            // 5. 重命名临时文件
+            renamedFile = new File(
+                    tempFile.getParent(),
+                    uploadFilename
+            );
+            Files.move(
+                    tempFile.toPath(),
+                    renamedFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
+            );
+
             // 上传图片到对象存储
-            PutObjectResult putObjectResult = cosManager.putPictureObject(uploadPath, file);
+            PutObjectResult putObjectResult = cosManager.putPictureObject(uploadPath, renamedFile);
             // 删除原始未压缩图像
             cosManager.deleteOriginalImage(uploadPath);
             ImageInfo imageInfo = putObjectResult.getCiUploadResult().getOriginalInfo().getImageInfo();
@@ -61,17 +86,23 @@ public abstract class PictureUploadTemplate {
             List<CIObject> objectList = processResults.getObjectList();
             if (CollUtil.isNotEmpty(objectList)) {
                 CIObject compressedCiObject = objectList.get(0);
+                // 缩略图默认等于压缩图
+                CIObject thumbnailCiObject = compressedCiObject;
+                // 有生成缩略图，才得到缩略图
+                if (objectList.size() > 1) {
+                    thumbnailCiObject = objectList.get(1);
+                }
                 // 封装压缩图返回结果
-                return buildResult(originFilename, compressedCiObject);
+                return buildResult(originFilename, compressedCiObject, thumbnailCiObject);
             }
             // 封装原图返回结果
-            return buildResult(originFilename, file, uploadPath, imageInfo);
+            return buildResult(originFilename, renamedFile, uploadPath, imageInfo);
         } catch (Exception e) {
             log.error("图片上传到对象存储失败", e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "上传失败");
         } finally {
             // 6. 清理临时文件
-            deleteTempFile(file);
+            deleteTempFile(renamedFile);
         }
     }
 
@@ -108,7 +139,7 @@ public abstract class PictureUploadTemplate {
         return uploadPictureResult;
     }
 
-    private UploadPictureResult buildResult(String originFilename, CIObject compressedCiObject) {
+    private UploadPictureResult buildResult(String originFilename, CIObject compressedCiObject, CIObject thumbnailCiObject) {
         UploadPictureResult uploadPictureResult = new UploadPictureResult();
         int picWidth = compressedCiObject.getWidth();
         int picHeight = compressedCiObject.getHeight();
@@ -121,6 +152,8 @@ public abstract class PictureUploadTemplate {
         uploadPictureResult.setPicSize(compressedCiObject.getSize().longValue());
         // 设置图片为压缩后的地址
         uploadPictureResult.setUrl(cosClientConfig.getHost() + "/" + compressedCiObject.getKey());
+        // 设置缩略图
+        uploadPictureResult.setThumbnailUrl(cosClientConfig.getHost() + "/" + thumbnailCiObject.getKey());
         return uploadPictureResult;
     }
 

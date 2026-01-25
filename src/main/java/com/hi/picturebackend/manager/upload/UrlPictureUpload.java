@@ -11,10 +11,14 @@ import com.hi.picturebackend.exception.ErrorCode;
 import com.hi.picturebackend.exception.ThrowUtils;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 @Service
@@ -79,5 +83,18 @@ public class UrlPictureUpload extends PictureUploadTemplate {
         String fileUrl = (String) inputSource;
         // 下载文件到临时目录
         HttpUtil.downloadFile(fileUrl, file);
+    }
+
+    public static String detectImageSuffix(File file) {
+        try (ImageInputStream iis = ImageIO.createImageInputStream(file)) {
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(iis);
+            if (readers.hasNext()) {
+                ImageReader reader = readers.next();
+                return reader.getFormatName().toLowerCase(); // jpeg / png / gif / webp
+            }
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "检测URL下载文件的类型失败");
+        }
+        return null;
     }
 }
