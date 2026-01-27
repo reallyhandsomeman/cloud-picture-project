@@ -4,16 +4,19 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableLogic;
 import com.baomidou.mybatisplus.annotation.TableName;
-import java.util.Date;
 import lombok.Data;
+
+import java.io.Serializable;
+import java.util.Date;
 
 /**
  * 用户
+ *
  * @TableName user
  */
-@TableName(value ="user")
+@TableName(value = "user")
 @Data
-public class User {
+public class User implements Serializable {
     /**
      * id（要指定主键策略，采用雪花算法）
      */
@@ -70,4 +73,6 @@ public class User {
      */
     @TableLogic // 逻辑删除字段
     private Integer isDelete;
+
+    private static final long serialVersionUID = 1L;
 }
