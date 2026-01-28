@@ -9,14 +9,16 @@ import com.hi.picturebackend.exception.ErrorCode;
 import com.hi.picturebackend.exception.ThrowUtils;
 import com.hi.picturebackend.model.dto.space.SpaceUpdateRequest;
 import com.hi.picturebackend.model.entity.Space;
+import com.hi.picturebackend.model.entity.SpaceLevel;
+import com.hi.picturebackend.model.enums.SpaceLevelEnum;
 import com.hi.picturebackend.service.SpaceService;
 import org.springframework.beans.BeanUtils;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/space")
@@ -48,4 +50,15 @@ public class SpaceController {
         return ResultUtils.success(true);
     }
 
+    @GetMapping("/list/level")
+    public BaseResponse<List<SpaceLevel>> listSpaceLevel() {
+        List<SpaceLevel> spaceLevelList = Arrays.stream(SpaceLevelEnum.values()) // 获取所有枚举
+                .map(spaceLevelEnum -> new SpaceLevel(
+                        spaceLevelEnum.getValue(),
+                        spaceLevelEnum.getText(),
+                        spaceLevelEnum.getMaxCount(),
+                        spaceLevelEnum.getMaxSize()))
+                .collect(Collectors.toList());
+        return ResultUtils.success(spaceLevelList);
+    }
 }
