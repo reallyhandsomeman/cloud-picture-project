@@ -1,5 +1,6 @@
 package com.hi.picturebackend.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hi.picturebackend.annotation.AuthCheck;
 import com.hi.picturebackend.common.BaseResponse;
 import com.hi.picturebackend.common.ResultUtils;
@@ -7,15 +8,21 @@ import com.hi.picturebackend.constant.UserConstant;
 import com.hi.picturebackend.exception.BusinessException;
 import com.hi.picturebackend.exception.ErrorCode;
 import com.hi.picturebackend.exception.ThrowUtils;
+import com.hi.picturebackend.model.dto.space.SpaceAddRequest;
+import com.hi.picturebackend.model.dto.space.SpaceQueryRequest;
 import com.hi.picturebackend.model.dto.space.SpaceUpdateRequest;
 import com.hi.picturebackend.model.entity.Space;
 import com.hi.picturebackend.model.entity.SpaceLevel;
+import com.hi.picturebackend.model.entity.User;
 import com.hi.picturebackend.model.enums.SpaceLevelEnum;
+import com.hi.picturebackend.model.vo.SpaceVO;
 import com.hi.picturebackend.service.SpaceService;
+import com.hi.picturebackend.service.UserService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -25,6 +32,9 @@ import java.util.stream.Collectors;
 public class SpaceController {
     @Resource
     private SpaceService spaceService;
+
+    @Resource
+    private UserService userService;
 
 
     @PostMapping("/update")
@@ -60,5 +70,73 @@ public class SpaceController {
                         spaceLevelEnum.getMaxSize()))
                 .collect(Collectors.toList());
         return ResultUtils.success(spaceLevelList);
+    }
+
+    @PostMapping("/add")
+    public BaseResponse<Long> addSpace(@RequestBody SpaceAddRequest spaceAddRequest, HttpServletRequest request) {
+        ThrowUtils.throwIf(spaceAddRequest == null, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(request);
+        long newId = spaceService.addSpace(spaceAddRequest, loginUser);
+        return ResultUtils.success(newId);
+    }
+
+    /**
+     * 根据 id 获取空间（仅管理员可用）
+     */
+    @GetMapping("/get")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Space> getSpaceById(long id, HttpServletRequest request) {
+        ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        Space space = spaceService.getById(id);
+        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
+        // 获取封装类
+        return ResultUtils.success(space);
+    }
+
+    /**
+     * 根据 id 获取空间（封装类）
+     */
+    @GetMapping("/get/vo")
+    public BaseResponse<SpaceVO> getSpaceVOById(long id, HttpServletRequest request) {
+        ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        Space space = spaceService.getById(id);
+        ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
+        SpaceVO spaceVO = spaceService.getSpaceVO(space, request);
+        User loginUser = userService.getLoginUser(request);
+        // 获取封装类
+        return ResultUtils.success(spaceVO);
+    }
+
+    /**
+     * 分页获取空间列表（仅管理员可用）
+     */
+    @PostMapping("/list/page")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Page<Space>> listSpaceByPage(@RequestBody SpaceQueryRequest spaceQueryRequest) {
+        long current = spaceQueryRequest.getCurrent();
+        long size = spaceQueryRequest.getPageSize();
+        // 查询数据库
+        Page<Space> spacePage = spaceService.page(new Page<>(current, size),
+                spaceService.getQueryWrapper(spaceQueryRequest));
+        return ResultUtils.success(spacePage);
+    }
+
+    /**
+     * 分页获取空间列表（封装类）
+     */
+    @PostMapping("/list/page/vo")
+    public BaseResponse<Page<SpaceVO>> listSpaceVOByPage(@RequestBody SpaceQueryRequest spaceQueryRequest,
+                                                         HttpServletRequest request) {
+        long current = spaceQueryRequest.getCurrent();
+        long size = spaceQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        // 查询数据库
+        Page<Space> spacePage = spaceService.page(new Page<>(current, size),
+                spaceService.getQueryWrapper(spaceQueryRequest));
+        // 获取封装类
+        return ResultUtils.success(spaceService.getSpaceVOPage(spacePage, request));
     }
 }
