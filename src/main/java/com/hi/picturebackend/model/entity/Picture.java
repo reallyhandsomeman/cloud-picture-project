@@ -121,6 +121,10 @@ public class Picture implements Serializable {
      */
     private String thumbnailUrl;
 
+    /**
+     * 空间 id
+     */
+    private Long spaceId;
 
     // 这个字段不是数据库表字段，请在 SQL 中忽略它。
     @TableField(exist = false)
