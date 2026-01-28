@@ -12,12 +12,15 @@ import com.hi.picturebackend.model.entity.User;
 import com.hi.picturebackend.model.enums.SpaceLevelEnum;
 import com.hi.picturebackend.service.SpaceService;
 import com.hi.picturebackend.service.UserService;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import javax.annotation.Resource;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author zouzonglin
@@ -75,6 +78,9 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
     @Resource
     private UserService userService;
 
+    @Resource
+    private RedissonClient redissonClient;
+
     @Override
     public long addSpace(SpaceAddRequest spaceAddRequest, User loginUser) {
 
@@ -114,13 +120,11 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
         // 7️⃣ 针对同一用户加锁，防止并发创建多个私有空间
         // 使用 userId 作为锁的粒度，不影响不同用户的并发操作
-        // intern() 保证相同 userId 使用的是同一个锁对象
-        String lock = String.valueOf(userId).intern();
-        synchronized (lock) {
-
+        RLock lock = redissonClient.getLock("space:create:" + userId);
+        lock.lock(30, TimeUnit.SECONDS); // 指定超时时间
+        try {
             // 8️⃣ 在事务中执行“是否已存在空间 + 创建空间”的原子操作
             Long newSpaceId = transactionTemplate.execute(status -> {
-
                 // 8.1 校验该用户是否已经存在空间
                 // 防止同一用户拥有多个私有空间
                 boolean exists = this.lambdaQuery()
@@ -139,6 +143,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
             // 9️⃣ 事务返回值是包装类型，防止出现 null
             // 若事务执行失败，返回 -1 作为兜底值
             return Optional.ofNullable(newSpaceId).orElse(-1L);
+        } finally {
+            lock.unlock();
         }
     }
 }
