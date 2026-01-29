@@ -8,6 +8,7 @@ import com.hi.picturebackend.model.entity.Picture;
 import com.hi.picturebackend.model.entity.User;
 import com.hi.picturebackend.model.vo.PictureVO;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
@@ -69,4 +70,10 @@ public interface PictureService extends IService<Picture> {
     void editPicture(PictureEditRequest pictureEditRequest, User loginUser);
 
     List<PictureVO> searchPictureByColor(Long spaceId, String picColor, User loginUser);
+
+    @Transactional(rollbackFor = Exception.class)
+    void editPictureByBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser);
+
+    @Transactional(rollbackFor = Exception.class)
+    void editPictureByConcurrentBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser);
 }
