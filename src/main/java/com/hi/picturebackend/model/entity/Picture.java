@@ -126,6 +126,12 @@ public class Picture implements Serializable {
      */
     private Long spaceId;
 
+    /**
+     * 图片主色调
+     */
+    private String picColor;
+
+
     // 这个字段不是数据库表字段，请在 SQL 中忽略它。
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;
