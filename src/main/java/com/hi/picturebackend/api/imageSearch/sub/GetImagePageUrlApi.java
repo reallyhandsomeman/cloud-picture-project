@@ -33,10 +33,12 @@ public class GetImagePageUrlApi {
         long uptime = System.currentTimeMillis();
         // 请求地址
         String url = "https://graph.baidu.com/upload?uptime=" + uptime;
-
+        String acsToken = "025";
         try {
             // 2. 发送 POST 请求到百度接口
             HttpResponse response = HttpRequest.post(url)
+                    // 这里需要指定acs-token 不然会响应系统异常
+                    .header("Acs-Token", acsToken)
                     .form(formData)
                     .timeout(5000)
                     .execute();
@@ -69,7 +71,7 @@ public class GetImagePageUrlApi {
 
     public static void main(String[] args) {
         // 测试以图搜图功能
-        String imageUrl = "https://www.codefather.cn/logo.png";
+        String imageUrl = "https://gimg2.baidu.com/image_search/src=http%3A%2F%2Fimage109.360doc.com%2FDownloadImg%2F2025%2F04%2F0321%2F296122601_4_20250403090445718&refer=http%3A%2F%2Fimage109.360doc.com&app=2002&size=f9999,10000&q=a80&n=0&g=0n&fmt=auto?sec=1772258401&t=793cbc5ea226bec4e0a51f5f6db2d110";
         String result = getImagePageUrl(imageUrl);
         System.out.println("搜索成功，结果 URL：" + result);
     }
