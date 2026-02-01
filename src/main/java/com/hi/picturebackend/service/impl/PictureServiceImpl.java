@@ -633,9 +633,7 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
 
     /**
      * 通过线程池，并发批量编辑图片分类和标签
-     *  todo 研究一下线程池
      */
-    @Transactional(rollbackFor = Exception.class)
     @Override
     public void editPictureByConcurrentBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser) {
         List<Long> pictureIdList = pictureEditByBatchRequest.getPictureIdList();
@@ -669,22 +667,24 @@ public class PictureServiceImpl extends ServiceImpl<PictureMapper, Picture>
         List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (int i = 0; i < pictureList.size(); i += batchSize) {
             List<Picture> batch = pictureList.subList(i, Math.min(i + batchSize, pictureList.size()));
-
             // 异步处理每批数据
             CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                batch.forEach(picture -> {
-                    // 编辑分类和标签
-                    if (category != null) {
-                        picture.setCategory(category);
+                transactionTemplate.execute(status -> {
+                    batch.forEach(picture -> {
+                        if (category != null) {
+                            picture.setCategory(category);
+                        }
+                        if (tags != null) {
+                            picture.setTags(String.join(",", tags));
+                        }
+                    });
+
+                    boolean result = this.updateBatchById(batch);
+                    if (!result) {
+                        throw new BusinessException(ErrorCode.OPERATION_ERROR, "批量更新图片失败");
                     }
-                    if (tags != null) {
-                        picture.setTags(String.join(",", tags));
-                    }
+                    return null; // 必须有
                 });
-                boolean result = this.updateBatchById(batch);
-                if (!result) {
-                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "批量更新图片失败");
-                }
             }, customExecutor);
             futures.add(future);
         }
