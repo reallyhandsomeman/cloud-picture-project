@@ -15,6 +15,7 @@ import com.hi.picturebackend.model.dto.space.SpaceQueryRequest;
 import com.hi.picturebackend.model.entity.Space;
 import com.hi.picturebackend.model.entity.User;
 import com.hi.picturebackend.model.enums.SpaceLevelEnum;
+import com.hi.picturebackend.model.enums.SpaceTypeEnum;
 import com.hi.picturebackend.model.vo.SpaceVO;
 import com.hi.picturebackend.model.vo.UserVO;
 import com.hi.picturebackend.service.SpaceService;
@@ -50,6 +51,8 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         String spaceName = space.getSpaceName();
         Integer spaceLevel = space.getSpaceLevel();
         SpaceLevelEnum spaceLevelEnum = SpaceLevelEnum.getEnumByValue(spaceLevel);
+        Integer spaceType = space.getSpaceType();
+        SpaceTypeEnum spaceTypeEnum = SpaceTypeEnum.getEnumByValue(spaceType);
         // 要创建
         if (add) {
             if (StrUtil.isBlank(spaceName)) {
@@ -62,6 +65,10 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         // 修改数据时，如果要改空间级别
         if (spaceLevel != null && spaceLevelEnum == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间级别不存在");
+        }
+        // 修改数据时，如果要改空间级别
+        if (spaceType != null && spaceTypeEnum == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间类型不存在");
         }
         if (StrUtil.isNotBlank(spaceName) && spaceName.length() > 30) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "空间名称过长");
@@ -95,54 +102,56 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
 
     @Override
     public long addSpace(SpaceAddRequest spaceAddRequest, User loginUser) {
-
-        // 1️⃣ DTO → 实体类转换
-        // 将前端传入的 SpaceAddRequest 中的同名属性拷贝到 Space 实体中
+        // 处理默认值（防止前端未传导致空值问题）
+        if (StrUtil.isBlank(spaceAddRequest.getSpaceName())) {
+            spaceAddRequest.setSpaceName("默认空间");
+        }
+        if (spaceAddRequest.getSpaceLevel() == null) {
+            spaceAddRequest.setSpaceLevel(SpaceLevelEnum.COMMON.getValue());
+        }
+        if (spaceAddRequest.getSpaceType() == null) {
+            spaceAddRequest.setSpaceType(SpaceTypeEnum.PRIVATE.getValue());
+        }
+        // 在此处将实体类和 DTO 进行转换
         Space space = new Space();
         BeanUtils.copyProperties(spaceAddRequest, space);
+        // 填充数据
+        this.fillSpaceBySpaceLevel(space);
 
-        // 2️⃣ 处理默认值（防止前端未传导致空值问题）
-        // 空间名称为空时，设置默认名称
-        if (StrUtil.isBlank(spaceAddRequest.getSpaceName())) {
-            space.setSpaceName("默认空间");
-        }
-        // 空间级别未指定时，默认设置为普通空间
-        if (spaceAddRequest.getSpaceLevel() == null) {
-            space.setSpaceLevel(SpaceLevelEnum.COMMON.getValue());
-        }
 
-        // 3️⃣ 根据空间级别填充其他业务相关字段
+        // 根据空间级别填充其他业务相关字段
         // 如容量大小、空间配额等
         this.fillSpaceBySpaceLevel(space);
 
-        // 4️⃣ 数据合法性校验
+        // 数据合法性校验
         // true 表示创建场景下的校验
         this.validSpace(space, true);
 
-        // 5️⃣ 设置空间所属用户
+        // 设置空间所属用户
         Long userId = loginUser.getId();
         space.setUserId(userId);
 
-        // 6️⃣ 权限校验
+        // 权限校验
         // 只有管理员才允许创建非普通级别的空间
         if (SpaceLevelEnum.COMMON.getValue() != spaceAddRequest.getSpaceLevel()
                 && !userService.isAdmin(loginUser)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限创建指定级别的空间");
         }
 
-        // 7️⃣ 针对同一用户加锁，防止并发创建多个私有空间
+        // 针对同一用户加锁，防止并发创建多个私有空间
         // 使用 userId 作为锁的粒度，不影响不同用户的并发操作
         RLock lock = redissonClient.getLock("space:create:" + userId);
         lock.lock(30, TimeUnit.SECONDS); // 指定超时时间
         try {
-            // 8️⃣ 在事务中执行“是否已存在空间 + 创建空间”的原子操作
+            // 在事务中执行“是否已存在空间 + 创建空间”的原子操作
             Long newSpaceId = transactionTemplate.execute(status -> {
                 // 8.1 校验该用户是否已经存在空间
                 // 防止同一用户拥有多个私有空间
                 boolean exists = this.lambdaQuery()
                         .eq(Space::getUserId, userId)
+                        .eq(Space::getSpaceType, spaceAddRequest.getSpaceType())
                         .exists();
-                ThrowUtils.throwIf(exists, ErrorCode.OPERATION_ERROR, "每个用户仅能有一个私有空间");
+                ThrowUtils.throwIf(exists, ErrorCode.OPERATION_ERROR, "每个用户每类空间仅能创建一个");
 
                 // 8.2 写入数据库
                 boolean result = this.save(space);
@@ -152,7 +161,7 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                 return space.getId();
             });
 
-            // 9️⃣ 事务返回值是包装类型，防止出现 null
+            // 事务返回值是包装类型，防止出现 null
             // 若事务执行失败，返回 -1 作为兜底值
             return Optional.ofNullable(newSpaceId).orElse(-1L);
         } finally {
@@ -173,11 +182,13 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
         Integer spaceLevel = spaceQueryRequest.getSpaceLevel();
         String sortField = spaceQueryRequest.getSortField();
         String sortOrder = spaceQueryRequest.getSortOrder();
+        Integer spaceType = spaceQueryRequest.getSpaceType();
         // 拼接查询条件
         queryWrapper.eq(ObjUtil.isNotEmpty(id), "id", id);
         queryWrapper.eq(ObjUtil.isNotEmpty(userId), "userId", userId);
         queryWrapper.like(StrUtil.isNotBlank(spaceName), "spaceName", spaceName);
         queryWrapper.eq(ObjUtil.isNotEmpty(spaceLevel), "spaceLevel", spaceLevel);
+        queryWrapper.eq(ObjUtil.isNotEmpty(spaceType), "spaceType", spaceType);
         // 排序
         queryWrapper.orderBy(StrUtil.isNotEmpty(sortField), sortOrder.equals("ascend"), sortField);
         return queryWrapper;
