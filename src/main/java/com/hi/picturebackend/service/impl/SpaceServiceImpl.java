@@ -13,12 +13,15 @@ import com.hi.picturebackend.mapper.SpaceMapper;
 import com.hi.picturebackend.model.dto.space.SpaceAddRequest;
 import com.hi.picturebackend.model.dto.space.SpaceQueryRequest;
 import com.hi.picturebackend.model.entity.Space;
+import com.hi.picturebackend.model.entity.SpaceUser;
 import com.hi.picturebackend.model.entity.User;
 import com.hi.picturebackend.model.enums.SpaceLevelEnum;
+import com.hi.picturebackend.model.enums.SpaceRoleEnum;
 import com.hi.picturebackend.model.enums.SpaceTypeEnum;
 import com.hi.picturebackend.model.vo.SpaceVO;
 import com.hi.picturebackend.model.vo.UserVO;
 import com.hi.picturebackend.service.SpaceService;
+import com.hi.picturebackend.service.SpaceUserService;
 import com.hi.picturebackend.service.UserService;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -100,6 +103,9 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
     @Resource
     private RedissonClient redissonClient;
 
+    @Resource
+    private SpaceUserService spaceUserService;
+
     @Override
     public long addSpace(SpaceAddRequest spaceAddRequest, User loginUser) {
         // 处理默认值（防止前端未传导致空值问题）
@@ -156,7 +162,15 @@ public class SpaceServiceImpl extends ServiceImpl<SpaceMapper, Space>
                 // 8.2 写入数据库
                 boolean result = this.save(space);
                 ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-
+                // 如果是团队空间，关联新增团队成员记录
+                if (SpaceTypeEnum.TEAM.getValue() == spaceAddRequest.getSpaceType()) {
+                    SpaceUser spaceUser = new SpaceUser();
+                    spaceUser.setSpaceId(space.getId());
+                    spaceUser.setUserId(userId);
+                    spaceUser.setSpaceRole(SpaceRoleEnum.ADMIN.getValue());
+                    result = spaceUserService.save(spaceUser);
+                    ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "创建团队成员记录失败");
+                }
                 // 8.3 返回新创建空间的主键 id
                 return space.getId();
             });
