@@ -22,6 +22,7 @@ import com.hi.picturebackend.service.SpaceService;
 import com.hi.picturebackend.service.SpaceUserService;
 import com.hi.picturebackend.service.UserService;
 import org.springframework.beans.BeanUtils;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -46,6 +47,7 @@ public class SpaceUserServiceImpl extends ServiceImpl<SpaceUserMapper, SpaceUser
     private UserService userService;
 
     @Resource
+    @Lazy // 解决循环依赖
     private SpaceService spaceService;
 
     @Override
