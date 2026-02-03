@@ -8,6 +8,7 @@ import com.hi.picturebackend.constant.UserConstant;
 import com.hi.picturebackend.exception.BusinessException;
 import com.hi.picturebackend.exception.ErrorCode;
 import com.hi.picturebackend.exception.ThrowUtils;
+import com.hi.picturebackend.manager.auth.SpaceUserAuthManager;
 import com.hi.picturebackend.model.dto.space.SpaceAddRequest;
 import com.hi.picturebackend.model.dto.space.SpaceQueryRequest;
 import com.hi.picturebackend.model.dto.space.SpaceUpdateRequest;
@@ -94,6 +95,9 @@ public class SpaceController {
         return ResultUtils.success(space);
     }
 
+    @Resource
+    SpaceUserAuthManager spaceUserAuthManager;
+
     /**
      * 根据 id 获取空间（封装类）
      */
@@ -105,6 +109,8 @@ public class SpaceController {
         ThrowUtils.throwIf(space == null, ErrorCode.NOT_FOUND_ERROR);
         SpaceVO spaceVO = spaceService.getSpaceVO(space, request);
         User loginUser = userService.getLoginUser(request);
+        List<String> permissionList = spaceUserAuthManager.getPermissionList(space, loginUser);
+        spaceVO.setPermissionList(permissionList);
         // 获取封装类
         return ResultUtils.success(spaceVO);
     }
