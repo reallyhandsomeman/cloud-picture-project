@@ -1,6 +1,8 @@
 package com.hi.picturebackend.manager.sharding;
 
+import com.baomidou.mybatisplus.extension.toolkit.SqlRunner;
 import com.hi.picturebackend.model.entity.Space;
+import com.hi.picturebackend.model.enums.SpaceLevelEnum;
 import com.hi.picturebackend.model.enums.SpaceTypeEnum;
 import com.hi.picturebackend.service.SpaceService;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +24,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-@Component
+//@Component
 @Slf4j
 public class DynamicShardingManager {
 
@@ -111,6 +113,24 @@ public class DynamicShardingManager {
             return connection.getContextManager();
         } catch (SQLException e) {
             throw new RuntimeException("获取 ShardingSphere ContextManager 失败", e);
+        }
+    }
+
+    public void createSpacePictureTable(Space space) {
+        // 动态创建分表
+        // 仅为旗舰版团队空间创建分表
+        if (space.getSpaceType() == SpaceTypeEnum.TEAM.getValue() && space.getSpaceLevel() == SpaceLevelEnum.FLAGSHIP.getValue()) {
+            Long spaceId = space.getId();
+            String tableName = "picture_" + spaceId;
+            // 创建新表
+            String createTableSql = "CREATE TABLE " + tableName + " LIKE picture";
+            try {
+                SqlRunner.db().update(createTableSql);
+                // 更新分表
+                updateShardingTableNodes();
+            } catch (Exception e) {
+                log.error("创建图片空间分表失败，空间 id = {}", space.getId());
+            }
         }
     }
 }
