@@ -3,6 +3,7 @@ package com.hi.picturebackend.service;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.hi.picturebackend.api.aliyunai.model.CreateOutPaintingTaskResponse;
 import com.hi.picturebackend.model.dto.picture.*;
 import com.hi.picturebackend.model.entity.Picture;
 import com.hi.picturebackend.model.entity.User;
@@ -76,4 +77,6 @@ public interface PictureService extends IService<Picture> {
 
     @Transactional(rollbackFor = Exception.class)
     void editPictureByConcurrentBatch(PictureEditByBatchRequest pictureEditByBatchRequest, User loginUser);
+
+    CreateOutPaintingTaskResponse createPictureOutPaintingTask(CreatePictureOutPaintingTaskRequest createPictureOutPaintingTaskRequest, User loginUser);
 }
