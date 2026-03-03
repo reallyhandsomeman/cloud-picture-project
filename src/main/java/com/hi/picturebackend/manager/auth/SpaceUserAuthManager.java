@@ -1,59 +1,39 @@
 package com.hi.picturebackend.manager.auth;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.io.resource.ResourceUtil;
-import cn.hutool.core.util.ObjUtil;
-import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.core.util.ReflectUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.extra.servlet.ServletUtil;
-import cn.hutool.http.ContentType;
-import cn.hutool.http.Header;
 import cn.hutool.json.JSONUtil;
-import com.hi.picturebackend.exception.BusinessException;
-import com.hi.picturebackend.exception.ErrorCode;
 import com.hi.picturebackend.manager.auth.model.SpaceUserAuthConfig;
 import com.hi.picturebackend.manager.auth.model.SpaceUserPermissionConstant;
 import com.hi.picturebackend.manager.auth.model.SpaceUserRole;
-import com.hi.picturebackend.model.entity.Picture;
 import com.hi.picturebackend.model.entity.Space;
 import com.hi.picturebackend.model.entity.SpaceUser;
 import com.hi.picturebackend.model.entity.User;
 import com.hi.picturebackend.model.enums.SpaceRoleEnum;
 import com.hi.picturebackend.model.enums.SpaceTypeEnum;
-import com.hi.picturebackend.service.PictureService;
-import com.hi.picturebackend.service.SpaceService;
 import com.hi.picturebackend.service.SpaceUserService;
 import com.hi.picturebackend.service.UserService;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.annotation.Resource;
-import javax.servlet.http.HttpServletRequest;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
-import static com.hi.picturebackend.constant.UserConstant.USER_LOGIN_STATE;
-
+/**
+ * 空间成员权限管理
+ */
 @Component
 public class SpaceUserAuthManager {
-
-    @Resource
-    private SpaceUserService spaceUserService;
 
     @Resource
     private UserService userService;
 
     @Resource
-    private PictureService pictureService;
-
-    @Resource
-    private SpaceService spaceService;
+    private SpaceUserService spaceUserService;
 
     public static final SpaceUserAuthConfig SPACE_USER_AUTH_CONFIG;
 
-    // 静态初始化块，把一个 JSON 配置文件读进内存，反序列化成一个全局常量配置对象
     static {
         String json = ResourceUtil.readUtf8Str("biz/spaceUserAuthConfig.json");
         SPACE_USER_AUTH_CONFIG = JSONUtil.toBean(json, SpaceUserAuthConfig.class);
@@ -61,14 +41,17 @@ public class SpaceUserAuthManager {
 
     /**
      * 根据角色获取权限列表
+     *
+     * @param spaceUserRole
+     * @return
      */
     public List<String> getPermissionsByRole(String spaceUserRole) {
         if (StrUtil.isBlank(spaceUserRole)) {
             return new ArrayList<>();
         }
-        // 找到匹配的角色
-        SpaceUserRole role = SPACE_USER_AUTH_CONFIG.getRoles().stream()
-                .filter(r -> spaceUserRole.equals(r.getKey()))
+        SpaceUserRole role = SPACE_USER_AUTH_CONFIG.getRoles()
+                .stream()
+                .filter(r -> r.getKey().equals(spaceUserRole))
                 .findFirst()
                 .orElse(null);
         if (role == null) {
@@ -77,141 +60,14 @@ public class SpaceUserAuthManager {
         return role.getPermissions();
     }
 
-    @Value("${server.servlet.context-path}")
-    private String contextPath;
 
     /**
-     * 从请求中获取上下文对象
+     * 获取权限列表
+     *
+     * @param space
+     * @param loginUser
+     * @return
      */
-    private SpaceUserAuthContext getAuthContextByRequest() {
-        HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
-        String contentType = request.getHeader(Header.CONTENT_TYPE.getValue());
-        SpaceUserAuthContext authRequest;
-        // 兼容 get 和 post 操作
-        if (ContentType.JSON.getValue().equals(contentType)) {
-            String body = ServletUtil.getBody(request);
-            authRequest = JSONUtil.toBean(body, SpaceUserAuthContext.class);
-        } else {
-            Map<String, String> paramMap = ServletUtil.getParamMap(request);
-            authRequest = BeanUtil.toBean(paramMap, SpaceUserAuthContext.class);
-        }
-        // 根据请求路径区分 id 字段的含义
-        Long id = authRequest.getId();
-        if (ObjUtil.isNotNull(id)) {
-            String requestUri = request.getRequestURI();
-            String partUri = requestUri.replace(contextPath + "/", "");
-            String moduleName = StrUtil.subBefore(partUri, "/", false);
-            switch (moduleName) {
-                case "picture":
-                    authRequest.setPictureId(id);
-                    break;
-                case "spaceUser":
-                    authRequest.setSpaceUserId(id);
-                    break;
-                case "space":
-                    authRequest.setSpaceId(id);
-                    break;
-                default:
-            }
-        }
-        return authRequest;
-    }
-
-    public List<String> getPermissionList(Object loginId, String loginType) {
-        // 判断 loginType，仅对类型为 "space" 进行权限校验
-        if (!StpKit.SPACE_TYPE.equals(loginType)) {
-            return new ArrayList<>();
-        }
-        // 管理员权限，表示权限校验通过
-        List<String> ADMIN_PERMISSIONS = this.getPermissionsByRole(SpaceRoleEnum.ADMIN.getValue());
-        // 获取上下文对象
-        SpaceUserAuthContext authContext = getAuthContextByRequest();
-        // 如果所有字段都为空，表示查询公共图库，可以通过
-        if (isAllFieldsNull(authContext)) {
-            return ADMIN_PERMISSIONS;
-        }
-        // 获取 userId
-        User loginUser = (User) StpKit.SPACE.getSessionByLoginId(loginId).get(USER_LOGIN_STATE);
-        if (loginUser == null) {
-            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "用户未登录");
-        }
-        Long userId = loginUser.getId();
-        // 优先从上下文中获取 SpaceUser 对象
-        SpaceUser spaceUser = authContext.getSpaceUser();
-        if (spaceUser != null) {
-            return this.getPermissionsByRole(spaceUser.getSpaceRole());
-        }
-        // 如果有 spaceUserId，必然是团队空间，通过数据库查询 SpaceUser 对象
-        Long spaceUserId = authContext.getSpaceUserId();
-        if (spaceUserId != null) {
-            spaceUser = spaceUserService.getById(spaceUserId);
-            if (spaceUser == null) {
-                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "未找到空间用户信息");
-            }
-            // 取出当前登录用户对应的 spaceUser
-            SpaceUser loginSpaceUser = spaceUserService.lambdaQuery()
-                    .eq(SpaceUser::getSpaceId, spaceUser.getSpaceId())
-                    .eq(SpaceUser::getUserId, userId)
-                    .one();
-            if (loginSpaceUser == null) {
-                return new ArrayList<>();
-            }
-            // 这里会导致管理员在私有空间没有权限，可以再查一次库处理
-            return this.getPermissionsByRole(loginSpaceUser.getSpaceRole());
-        }
-        // 如果没有 spaceUserId，尝试通过 spaceId 或 pictureId 获取 Space 对象并处理
-        Long spaceId = authContext.getSpaceId();
-        if (spaceId == null) {
-            // 如果没有 spaceId，通过 pictureId 获取 Picture 对象和 Space 对象
-            Long pictureId = authContext.getPictureId();
-            // 图片 id 也没有，则默认通过权限校验
-            if (pictureId == null) {
-                return ADMIN_PERMISSIONS;
-            }
-            Picture picture = pictureService.lambdaQuery()
-                    .eq(Picture::getId, pictureId)
-                    .select(Picture::getId, Picture::getSpaceId, Picture::getUserId)
-                    .one();
-            if (picture == null) {
-                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "未找到图片信息");
-            }
-            spaceId = picture.getSpaceId();
-            // 公共图库，仅本人或管理员可操作
-            if (spaceId == null) {
-                if (picture.getUserId().equals(userId) || userService.isAdmin(loginUser)) {
-                    return ADMIN_PERMISSIONS;
-                } else {
-                    // 不是自己的图片，仅可查看
-                    return Collections.singletonList(SpaceUserPermissionConstant.PICTURE_VIEW);
-                }
-            }
-        }
-        // 获取 Space 对象
-        Space space = spaceService.getById(spaceId);
-        if (space == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "未找到空间信息");
-        }
-        // 根据 Space 类型判断权限
-        if (space.getSpaceType() == SpaceTypeEnum.PRIVATE.getValue()) {
-            // 私有空间，仅本人或管理员有权限
-            if (space.getUserId().equals(userId) || userService.isAdmin(loginUser)) {
-                return ADMIN_PERMISSIONS;
-            } else {
-                return new ArrayList<>();
-            }
-        } else {
-            // 团队空间，查询 SpaceUser 并获取角色和权限
-            spaceUser = spaceUserService.lambdaQuery()
-                    .eq(SpaceUser::getSpaceId, spaceId)
-                    .eq(SpaceUser::getUserId, userId)
-                    .one();
-            if (spaceUser == null) {
-                return new ArrayList<>();
-            }
-            return this.getPermissionsByRole(spaceUser.getSpaceRole());
-        }
-    }
-
     public List<String> getPermissionList(Space space, User loginUser) {
         if (loginUser == null) {
             return new ArrayList<>();
@@ -223,7 +79,7 @@ public class SpaceUserAuthManager {
             if (userService.isAdmin(loginUser)) {
                 return ADMIN_PERMISSIONS;
             }
-            return new ArrayList<>();
+            return Collections.singletonList(SpaceUserPermissionConstant.PICTURE_VIEW);
         }
         SpaceTypeEnum spaceTypeEnum = SpaceTypeEnum.getEnumByValue(space.getSpaceType());
         if (spaceTypeEnum == null) {
@@ -251,17 +107,5 @@ public class SpaceUserAuthManager {
                 }
         }
         return new ArrayList<>();
-    }
-
-    private boolean isAllFieldsNull(Object object) {
-        if (object == null) {
-            return true; // 对象本身为空
-        }
-        // 获取所有字段并判断是否所有字段都为空
-        return Arrays.stream(ReflectUtil.getFields(object.getClass()))
-                // 获取字段值
-                .map(field -> ReflectUtil.getFieldValue(object, field))
-                // 检查是否所有字段都为空
-                .allMatch(ObjectUtil::isEmpty);
     }
 }
