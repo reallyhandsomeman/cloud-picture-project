@@ -14,7 +14,7 @@ public class SaTokenTest {
 
 
         // 在当前会话进行 Space 账号登录
-        StpKit.SPACE.login(10001);
+        StpKit.SPACE.login(2016415732876300289L);
 
         try {
             // 检测当前会话是否以 Space 账号登录，并具有 picture:edit 权限
